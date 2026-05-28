@@ -12,9 +12,9 @@ import {
   insertBracketMatch, 
   updateBracketMatch,
   subscribeTournament
-} from './lib/db.js';
+} from './lib/supabase.js';
 
-import { assignPools, makePoolMatches, rankTeams, teamShort } from './lib/logic.js';
+import { assignPools, makePoolMatches, rankTeams, teamShort } from './lib/tournament.js';
 
 let state = {
   tournament: null,
@@ -36,7 +36,7 @@ function showToast(text, isErr = false) {
   el.innerText = text;
   document.body.appendChild(el);
   setTimeout(() => {
-    if (el) el.classList.remove('show');
+    if (el) el.remove();
   }, 3000);
 }
 
@@ -169,8 +169,10 @@ function viewPools() {
   if (state.activeTab === 'standings') {
     const pools = {};
     state.teams.forEach(t => {
-      if (!pools[t.pool_name]) pools[t.pool_name] = [];
-      pools[t.pool_name].push(t);
+      if (t.pool_name) {
+        if (!pools[t.pool_name]) pools[t.pool_name] = [];
+        pools[t.pool_name].push(t);
+      }
     });
     
     let html = '';
@@ -200,12 +202,12 @@ function viewPools() {
     });
 
     if (state.isAdmin) {
-      const allDone = state.poolMatches.every(m => m.played);
+      const allDone = state.poolMatches.length > 0 && state.poolMatches.every(m => m.played);
       html += `
         <div class="admin-box" style="margin-top:20px; background:rgba(0,230,118,0.1); border:1px solid var(--accent); padding:15px; border-radius:8px; text-align:center;">
           <p style="font-weight:bold; margin-bottom:10px;">PROGRES : ${state.poolMatches.filter(m=>m.played).length} / ${state.poolMatches.length} MATCHS</p>
           <button id="btn-go-bracket" class="btn btn-primary btn-full" ${!allDone ? 'disabled style="opacity:0.5;"' : ''}>
-            ${allDone ? '👉 GENERER LE TABLEAU FINAL' : '⏳ EN ATTENTE DES SCORES'}
+            ${allDone ? '👉 GÉNÉRER LE TABLEAU FINAL' : '⏳ EN ATTENTE DES SCORES'}
           </button>
         </div>
       `;
@@ -214,6 +216,9 @@ function viewPools() {
   }
 
   let html = '<div class="card"><h3 class="card-title">Matchs de Poules</h3>';
+  if (state.poolMatches.length === 0) {
+    html += `<p style="font-size:13px; color:var(--text3); text-align:center;">Aucun match généré.</p>`;
+  }
   state.poolMatches.forEach(m => {
     const isPlayed = m.played;
     html += `
@@ -224,9 +229,9 @@ function viewPools() {
           <div style="flex:1; font-size:14px; font-weight:${m.winner_id === m.team1_id ? 'bold' : 'normal'}">${teamShort(m.team1)}</div>
           
           <div style="display:flex; align-items:center; gap:6px;">
-            <input type="number" id="s1-${m.id}" class="input" value="${m.sets1 !== null ? m.sets1 : ''}" ${!state.isAdmin || isPlayed ? 'readonly' : ''} style="width:45px; text-align:center; padding:5px;" placeholder="0">
+            <input type="number" id="s1-${m.id}" class="input" value="${m.score1 !== null && m.score1 !== undefined ? m.score1 : ''}" ${!state.isAdmin || isPlayed ? 'readonly' : ''} style="width:45px; text-align:center; padding:5px;" placeholder="0">
             <span style="color:var(--text3)">/</span>
-            <input type="number" id="s2-${m.id}" class="input" value="${m.sets2 !== null ? m.sets2 : ''}" ${!state.isAdmin || isPlayed ? 'readonly' : ''} style="width:45px; text-align:center; padding:5px;" placeholder="0">
+            <input type="number" id="s2-${m.id}" class="input" value="${m.score2 !== null && m.score2 !== undefined ? m.score2 : ''}" ${!state.isAdmin || isPlayed ? 'readonly' : ''} style="width:45px; text-align:center; padding:5px;" placeholder="0">
           </div>
           
           <div style="flex:1; text-align:right; font-size:14px; font-weight:${m.winner_id === m.team2_id ? 'bold' : 'normal'}">${teamShort(m.team2)}</div>
@@ -274,15 +279,15 @@ function viewBracket() {
             <div style="flex:1; font-size:13px; font-weight:${m.winner_id === m.team1_id ? 'bold' : 'normal'}">${m.team1 ? teamShort(m.team1) : '⏳ Attente'}</div>
             
             <div style="display:flex; align-items:center; gap:4px;">
-              <input type="number" id="bs1-${m.id}" class="input" value="${m.sets1 !== null ? m.sets1 : ''}" ${!state.isAdmin || isPlayed || !m.team1 || !m.team2 ? 'readonly' : ''} style="width:40px; text-align:center; padding:4px;" placeholder="0">
+              <input type="number" id="bs1-${m.id}" class="input" value="${m.score1 !== null && m.score1 !== undefined ? m.score1 : ''}" ${!state.isAdmin || isPlayed || !m.team1_id || !m.team2_id ? 'readonly' : ''} style="width:40px; text-align:center; padding:4px;" placeholder="0">
               <span style="color:var(--text3)">/</span>
-              <input type="number" id="bs2-${m.id}" class="input" value="${m.sets2 !== null ? m.sets2 : ''}" ${!state.isAdmin || isPlayed || !m.team1 || !m.team2 ? 'readonly' : ''} style="width:40px; text-align:center; padding:4px;" placeholder="0">
+              <input type="number" id="bs2-${m.id}" class="input" value="${m.score2 !== null && m.score2 !== undefined ? m.score2 : ''}" ${!state.isAdmin || isPlayed || !m.team1_id || !m.team2_id ? 'readonly' : ''} style="width:40px; text-align:center; padding:4px;" placeholder="0">
             </div>
             
             <div style="flex:1; text-align:right; font-size:13px; font-weight:${m.winner_id === m.team2_id ? 'bold' : 'normal'}">${m.team2 ? teamShort(m.team2) : '⏳ Attente'}</div>
           </div>
           
-          ${state.isAdmin && !isPlayed && m.team1 && m.team2 ? `
+          ${state.isAdmin && !isPlayed && m.team1_id && m.team2_id ? `
             <button class="btn btn-save-inline-bracket" data-id="${m.id}" style="margin-top:8px; width:100%; background:var(--blue); color:#fff; font-size:12px; padding:4px; border:none; border-radius:4px;">
               VALIDER LE SCORE
             </button>
@@ -307,7 +312,7 @@ function viewBracket() {
 
   const hasFinale = state.bracketMatches.find(m => m.round_name === 'Finale');
   if (state.isAdmin && hasFinale && hasFinale.played) {
-    html += `<button id="btn-finish-tournament" class="btn btn-warn btn-full" style="margin-top:20px; font-weight:bold;">🏆 CLOTURER LE TOURNOI 🏆</button>`;
+    html += `<button id="btn-finish-tournament" class="btn btn-warn btn-full" style="margin-top:20px; font-weight:bold;">🏆 CLÔTURER LE TOURNOI 🏆</button>`;
   }
   
   return html;
@@ -316,7 +321,7 @@ function viewBracket() {
 function viewFinished() {
   return `
     <div class="card" style="text-align:center; padding:40px 20px;">
-      <h1 style="color:var(--accent); font-size:32px;">🎉 TOURNOI TERMINE 🎉</h1>
+      <h1 style="color:var(--accent); font-size:32px;">🎉 TOURNOI TERMINÉ 🎉</h1>
       <button onclick="window.location.search=''" class="btn btn-primary" style="margin-top:25px;">Nouveau tournoi</button>
     </div>
   `;
@@ -384,6 +389,17 @@ function bindEvents() {
     };
   }
 
+  document.querySelectorAll('.btn-del-team').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.id;
+      if (confirm('Supprimer cette équipe ?')) {
+        await deleteTeam(id);
+        await loadData();
+        renderApp();
+      }
+    };
+  });
+
   document.querySelectorAll('.btn-save-inline-pool').forEach(btn => {
     btn.onclick = async () => {
       const id = btn.dataset.id;
@@ -395,7 +411,7 @@ function bindEvents() {
       
       const m = state.poolMatches.find(x => x.id === id);
       const winner_id = s1 > s2 ? m.team1_id : m.team2_id;
-      await updatePoolMatch(id, { sets1: s1, sets2: s2, played: true, winner_id });
+      await updatePoolMatch(id, { score1: s1, score2: s2, played: true, winner_id });
       await loadData();
       renderApp();
     };
@@ -405,9 +421,9 @@ function bindEvents() {
     btn.onclick = async () => {
       const id = btn.dataset.id;
       if(btn.dataset.type === 'pool') {
-        await updatePoolMatch(id, { played: false, winner_id: null });
+        await updatePoolMatch(id, { played: false, winner_id: null, score1: null, score2: null });
       } else {
-        await updateBracketMatch(id, { played: false, winner_id: null });
+        await updateBracketMatch(id, { played: false, winner_id: null, score1: null, score2: null });
       }
       await loadData();
       renderApp();
@@ -446,7 +462,7 @@ function bindEvents() {
       
       const m = state.bracketMatches.find(x => x.id === id);
       const winner_id = s1 > s2 ? m.team1_id : m.team2_id;
-      await updateBracketMatch(id, { sets1: s1, sets2: s2, played: true, winner_id });
+      await updateBracketMatch(id, { score1: s1, score2: s2, played: true, winner_id });
       await loadData();
       renderApp();
     };
@@ -476,8 +492,10 @@ function bindEvents() {
     btnGoBracket.onclick = async () => {
       const pools = {};
       state.teams.forEach(t => {
-        if (!pools[t.pool_name]) pools[t.pool_name] = [];
-        pools[t.pool_name].push(t);
+        if (t.pool_name) {
+          if (!pools[t.pool_name]) pools[t.pool_name] = [];
+          pools[t.pool_name].push(t);
+        }
       });
       let qualifiers = [];
       const qLimit = state.tournament ? (state.tournament.qualifiers_per_pool || 2) : 2;
@@ -543,7 +561,6 @@ async function init() {
   });
 }
 
-// Initialisation sécurisée conforme pour bundlers
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
