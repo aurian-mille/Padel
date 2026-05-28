@@ -1,8 +1,19 @@
 import { 
-  getTournament, updateTournament, getTeams, insertTeam, deleteTeam, updateTeam,
-  getPoolMatches, insertPoolMatch, updatePoolMatch, getBracketMatches, insertBracketMatch, updateBracketMatch,
+  getTournament, 
+  updateTournament, 
+  getTeams, 
+  insertTeam, 
+  deleteTeam, 
+  updateTeam,
+  getPoolMatches, 
+  insertPoolMatch, 
+  updatePoolMatch, 
+  getBracketMatches, 
+  insertBracketMatch, 
+  updateBracketMatch,
   subscribeTournament
 } from './lib/db.js'
+
 import { assignPools, makePoolMatches, rankTeams, teamShort } from './lib/logic.js'
 
 let state = {
@@ -157,7 +168,7 @@ function viewRegistration() {
       <div class="share-url" style="background:rgba(255,255,255,0.05); padding:10px; border-radius:6px; font-size:12px; word-break:break-all;">${window.location.href}</div>
     </div>
     <div class="card">
-      <h3 class="card-title">👥 Ajouter une équipe (${state.teams.length} / ${state.tournament.max_teams})</h3>
+      <h3 class="card-title">👥 Ajouter une équipe (${state.teams.length} / ${state.tournament ? state.tournament.max_teams : 16})</h3>
       <div class="input-row">
         <input type="text" id="p1" class="input" placeholder="Joueur 1">
         <input type="text" id="p2" class="input" placeholder="Joueur 2">
@@ -200,7 +211,7 @@ function viewPools() {
       pools[t.pool_name].push(t)
     })
     let html = ''
-    const qCount = state.tournament ? (state.tournament.qualifiers_per_pool || 2) : 2;
+    const qCount = state.tournament ? (state.tournament.qualifiers_per_pool || 2) : 2
 
     Object.keys(pools).sort().forEach(pName => {
       const ranked = rankTeams(pools[pName], state.poolMatches.filter(m => m.pool_name === pName))
@@ -212,7 +223,7 @@ function viewPools() {
             <tbody>
       `
       ranked.forEach((team, idx) => {
-        const isQualifie = idx < qCount;
+        const isQualifie = idx < qCount
         html += `
           <tr style="border-bottom:1px solid rgba(255,255,255,0.05); ${isQualifie ? 'background:rgba(0,230,118,0.03);' : ''}">
             <td style="padding:8px; font-weight:bold; color:${isQualifie ? 'var(--accent)' : 'var(--text3)'}">${idx+1}</td>
@@ -241,7 +252,7 @@ function viewPools() {
 
   let html = '<div class="card"><h3 class="card-title">Matchs de Poules</h3>'
   state.poolMatches.forEach(m => {
-    const isPlayed = m.played;
+    const isPlayed = m.played
     html += `
       <div class="match-card" style="padding:15px; margin-bottom:15px; background:rgba(255,255,255,0.02); border-radius:8px; border-left:4px solid ${isPlayed ? 'var(--accent)' : 'var(--text3)'};">
         <div style="font-size:11px; color:var(--accent); margin-bottom:8px; font-weight:bold;">POULE ${m.pool_name}</div>
@@ -259,7 +270,7 @@ function viewPools() {
         </div>
 
         ${state.isAdmin && !isPlayed ? `
-          <button class="btn btn-save-inline-pool" data-id="${m.id}" style="margin-top:12px; width:100%; background:var(--accent); color:#0f1923; font-weight:bold; padding:6px;">
+          <button class="btn btn-save-inline-pool" data-id="${m.id}" style="margin-top:12px; width:100%; background:var(--accent); color:#0f1923; font-weight:bold; padding:6px; border:none; border-radius:4px;">
             💾 ENREGISTRER
           </button>
         ` : ''}
@@ -293,7 +304,7 @@ function viewBracket() {
     `
     
     matches.forEach(m => {
-      const isPlayed = m.played;
+      const isPlayed = m.played
       html += `
         <div style="padding:12px; background:rgba(255,255,255,0.01); border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
@@ -309,7 +320,7 @@ function viewBracket() {
           </div>
           
           ${state.isAdmin && !isPlayed && m.team1 && m.team2 ? `
-            <button class="btn btn-save-inline-bracket" data-id="${m.id}" style="margin-top:8px; width:100%; background:var(--blue); color:#fff; font-size:12px; padding:4px;">
+            <button class="btn btn-save-inline-bracket" data-id="${m.id}" style="margin-top:8px; width:100%; background:var(--blue); color:#fff; font-size:12px; padding:4px; border:none; border-radius:4px;">
               VALIDER LE SCORE
             </button>
           ` : ''}
@@ -320,10 +331,10 @@ function viewBracket() {
     html += `</div>`
     
     if (state.isAdmin && allPlayed && rName !== 'Finale') {
-      const nextRoundName = rName === 'Quarts de finale' ? 'Demi-finales' : 'Finale';
+      const nextRoundName = rName === 'Quarts de finale' ? 'Demi-finales' : 'Finale'
       html += `
         <button class="btn btn-lock-round" data-round="${rName}" style="margin-top:15px; width:100%; background:var(--accent); color:#0f1923; font-weight:bold; padding:8px; border:none; border-radius:4px; cursor:pointer;">
-          🔒 VALIDER LES ${rName.toUpperCase()} -> SOUMETTRE LES ${nextRoundName.toUpperCase()}
+          🔒 VALIDER LES ${rName.toUpperCase()} -> PASSER AUX ${nextRoundName.toUpperCase()}
         </button>
       `
     }
@@ -331,7 +342,7 @@ function viewBracket() {
     html += `</div>`
   })
 
-  const hasFinale = state.bracketMatches.find(m => m.round_name === 'Finale');
+  const hasFinale = state.bracketMatches.find(m => m.round_name === 'Finale')
   if (state.isAdmin && hasFinale && hasFinale.played) {
     html += `<button id="btn-finish-tournament" class="btn btn-warn btn-full" style="margin-top:20px; font-weight:bold;">🏆 CLOTURER LE TOURNOI 🏆</button>`
   }
@@ -379,7 +390,7 @@ function bindEvents() {
       await loadData()
       renderApp()
     }
-  });
+  })
 
   document.querySelectorAll('.btn-modifier').forEach(btn => {
     btn.onclick = async () => {
@@ -392,7 +403,7 @@ function bindEvents() {
       await loadData()
       renderApp()
     }
-  });
+  })
 
   const btnLaunch = document.getElementById('btn-launch-pools')
   if (btnLaunch) {
@@ -427,7 +438,7 @@ function bindEvents() {
       await loadData()
       renderApp()
     }
-  });
+  })
 
   document.querySelectorAll('.btn-lock-round').forEach(btn => {
     btn.onclick = async () => {
@@ -446,7 +457,7 @@ function bindEvents() {
       await loadData()
       renderApp()
     }
-  });
+  })
 
   const btnGoBracket = document.getElementById('btn-go-bracket')
   if (btnGoBracket) {
@@ -457,7 +468,7 @@ function bindEvents() {
         pools[t.pool_name].push(t)
       })
       let qualifiers = []
-      const qLimit = state.tournament ? (state.tournament.qualifiers_per_pool || 2) : 2;
+      const qLimit = state.tournament ? (state.tournament.qualifiers_per_pool || 2) : 2
 
       Object.keys(pools).sort().forEach(pName => {
         const ranked = rankTeams(pools[pName], state.poolMatches.filter(m => m.pool_name === pName))
@@ -492,4 +503,4 @@ function bindEvents() {
   if (btnFinish) { btnFinish.onclick = async () => { await updateTournament(tournamentId, { status: 'finished' }); await loadData(); renderApp() } }
 }
 
-window.onload = init;
+window.onload = init
