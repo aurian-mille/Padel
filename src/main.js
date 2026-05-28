@@ -55,7 +55,6 @@ async function loadData() {
   state.bracketMatches = await getBracketMatches(tournamentId)
 }
 
-// 1. CRÉATION DE LA COMPÉTITION PARAMÉTRABLE
 function renderLanding() {
   document.getElementById('app').innerHTML = `
     <div class="content">
@@ -151,11 +150,10 @@ function renderApp() {
   bindEvents()
 }
 
-// 2. INSCRIPTIONS ET REFRESH AUTOMATIQUE
 function viewRegistration() {
   let html = `
     <div class="card">
-      <h3 class="card-title">🔗 Lien public de suivi (à partager)</h3>
+      <h3 class="card-title">🔗 Lien public de suivi</h3>
       <div class="share-url" style="background:rgba(255,255,255,0.05); padding:10px; border-radius:6px; font-size:12px; word-break:break-all;">${window.location.href}</div>
     </div>
     <div class="card">
@@ -170,13 +168,13 @@ function viewRegistration() {
       <h4 style="margin-bottom:10px; color:var(--text2)">Liste des inscrits :</h4>
       <div style="display:flex; flex-direction:column; gap:8px;">
   `
-  if(state.teams.length === 0) html += `<p style="font-size:13px; color:var(--text3); text-align:center;">Aucune équipe inscrite pour le moment.</p>`
+  if(state.teams.length === 0) html += `<p style="font-size:13px; color:var(--text3); text-align:center;">Aucune équipe inscrite.</p>`
   state.teams.forEach((tm, idx) => {
     html += `
       <div class="team-row" style="background:rgba(255,255,255,0.02); padding:8px 12px; border-radius:6px; display:flex; justify-content:space-between; align-items:center;">
         <span style="font-weight:bold; color:var(--accent);">#${idx+1}</span>
         <span style="flex:1; margin-left:15px; font-size:14px;">${tm.player1} / ${tm.player2}</span>
-        ${state.isAdmin ? `<button class="btn btn-danger btn-del-team" data-id="${tm.id}" style="padding:2px 8px; font-size:11px;">Supprimer</button>` : ''}
+        ${state.isAdmin ? `<button class="btn btn-danger btn-del-team" data-id="${tm.id}" style="padding:2px 8px; font-size:11px;">X</button>` : ''}
       </div>
     `
   })
@@ -185,18 +183,15 @@ function viewRegistration() {
   if (state.isAdmin) {
     html += `
       <div class="admin-box" style="margin-top:20px; background:rgba(230,126,34,0.1); border:1px dashed var(--warn); padding:15px; border-radius:8px; text-align:center;">
-        <p style="color:var(--warn); font-size:13px; margin-bottom:10px; font-weight:bold;">ZONE ORGANISATEUR</p>
         <button id="btn-launch-pools" class="btn btn-warn btn-full" ${state.teams.length < 3 ? 'disabled' : ''}>
-          🔒 VERROUILLER LES INSCRIPTIONS & CRÉER LES POULES
+          🔒 VERROUILLER ET CRÉER LES POULES
         </button>
-        ${state.teams.length < 3 ? `<p style="font-size:11px; color:var(--text3); margin-top:5px;">Il faut au moins 3 équipes pour démarrer</p>` : ''}
       </div>
     `
   }
   return html
 }
 
-// 3. SAISIE STYLE PADEL ET VALIDATION DES POULES
 function viewPools() {
   if (state.activeTab === 'standings') {
     const pools = {}
@@ -205,6 +200,8 @@ function viewPools() {
       pools[t.pool_name].push(t)
     })
     let html = ''
+    const qCount = state.tournament ? (state.tournament.qualifiers_per_pool || 2) : 2;
+
     Object.keys(pools).sort().forEach(pName => {
       const ranked = rankTeams(pools[pName], state.poolMatches.filter(m => m.pool_name === pName))
       html += `
@@ -215,7 +212,7 @@ function viewPools() {
             <tbody>
       `
       ranked.forEach((team, idx) => {
-        const isQualifie = idx < (state.tournament.qualifiers_per_pool || 2);
+        const isQualifie = idx < qCount;
         html += `
           <tr style="border-bottom:1px solid rgba(255,255,255,0.05); ${isQualifie ? 'background:rgba(0,230,118,0.03);' : ''}">
             <td style="padding:8px; font-weight:bold; color:${isQualifie ? 'var(--accent)' : 'var(--text3)'}">${idx+1}</td>
@@ -228,14 +225,13 @@ function viewPools() {
       html += `</tbody></table></div>`
     })
 
-    // BOUTON DE PASSAGE AU TABLEAU VISIBLE UNIQUEMENT QUAND TOUT EST REMPLI
     if (state.isAdmin) {
       const allDone = state.poolMatches.every(m => m.played)
       html += `
         <div class="admin-box" style="margin-top:20px; background:rgba(0,230,118,0.1); border:1px solid var(--accent); padding:15px; border-radius:8px; text-align:center;">
-          <p style="font-weight:bold; margin-bottom:10px;">PROGRES DU TOURNOI : ${state.poolMatches.filter(m=>m.played).length} / ${state.poolMatches.length} MATCHS JOUÉS</p>
-          <button id="btn-go-bracket" class="btn btn-primary btn-full" ${!allDone ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
-            ${allDone ? '👉 CLÔTURER LES POULES & PASSER AU TABLEAU FINAL' : '⏳ EN ATTENTE DE TOUS LES SCORES DE POULES'}
+          <p style="font-weight:bold; margin-bottom:10px;">PROGRES : ${state.poolMatches.filter(m=>m.played).length} / ${state.poolMatches.length} MATCHS</p>
+          <button id="btn-go-bracket" class="btn btn-primary btn-full" ${!allDone ? 'disabled style="opacity:0.5;"' : ''}>
+            ${allDone ? '👉 GENERER LE TABLEAU FINAL' : '⏳ EN ATTENTE DES SCORES'}
           </button>
         </div>
       `
@@ -243,7 +239,6 @@ function viewPools() {
     return html
   }
 
-  // LISTE DES MATCHS DE POULE
   let html = '<div class="card"><h3 class="card-title">Matchs de Poules</h3>'
   state.poolMatches.forEach(m => {
     const isPlayed = m.played;
@@ -252,25 +247,24 @@ function viewPools() {
         <div style="font-size:11px; color:var(--accent); margin-bottom:8px; font-weight:bold;">POULE ${m.pool_name}</div>
         
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-          <div style="flex:1; font-size:14px; font-weight:${m.winner_id === m.team1_id ? 'bold' : 'normal'}; color:${m.winner_id === m.team2_id && isPlayed ? 'var(--text3)' : 'var(--text1)'}">${teamShort(m.team1)}</div>
+          <div style="flex:1; font-size:14px; font-weight:${m.winner_id === m.team1_id ? 'bold' : 'normal'}">${teamShort(m.team1)}</div>
           
-          <!-- Saisie Style Padel Simple -->
           <div style="display:flex; align-items:center; gap:6px;">
             <input type="number" id="s1-${m.id}" class="input" value="${m.sets1 !== null ? m.sets1 : ''}" ${!state.isAdmin || isPlayed ? 'readonly' : ''} style="width:45px; text-align:center; padding:5px;" placeholder="0">
             <span style="color:var(--text3)">/</span>
             <input type="number" id="s2-${m.id}" class="input" value="${m.sets2 !== null ? m.sets2 : ''}" ${!state.isAdmin || isPlayed ? 'readonly' : ''} style="width:45px; text-align:center; padding:5px;" placeholder="0">
           </div>
           
-          <div style="flex:1; text-align:right; font-size:14px; font-weight:${m.winner_id === m.team2_id ? 'bold' : 'normal'}; color:${m.winner_id === m.team1_id && isPlayed ? 'var(--text3)' : 'var(--text1)'}">${teamShort(m.team2)}</div>
+          <div style="flex:1; text-align:right; font-size:14px; font-weight:${m.winner_id === m.team2_id ? 'bold' : 'normal'}">${teamShort(m.team2)}</div>
         </div>
 
         ${state.isAdmin && !isPlayed ? `
           <button class="btn btn-save-inline-pool" data-id="${m.id}" style="margin-top:12px; width:100%; background:var(--accent); color:#0f1923; font-weight:bold; padding:6px;">
-            💾 ENREGISTRER LE SCORE
+            💾 ENREGISTRER
           </button>
         ` : ''}
         ${isPlayed && state.isAdmin ? `
-          <button class="btn-modifier" data-id="${m.id}" data-type="pool" style="background:none; border:none; color:var(--text3); font-size:11px; text-decoration:underline; cursor:pointer; margin-top:8px; display:block; width:100%; text-align:center;">Modifier le score</button>
+          <button class="btn-modifier" data-id="${m.id}" data-type="pool" style="background:none; border:none; color:var(--text3); font-size:11px; text-decoration:underline; cursor:pointer; margin-top:8px; display:block; width:100%; text-align:center;">Modifier</button>
         ` : ''}
       </div>
     `
@@ -279,7 +273,6 @@ function viewPools() {
   return html
 }
 
-// 4. PHASES FINALES AUTOMATIQUES (QUARTS -> DEMIES -> FINALE)
 function viewBracket() {
   const rounds = {}
   state.bracketMatches.forEach(m => {
@@ -289,7 +282,6 @@ function viewBracket() {
 
   let html = ''
   
-  // On affiche uniquement le tour en cours ou déjà complété pour ne pas surcharger l'écran
   Object.keys(rounds).sort((a,b) => rounds[b][0].round_index - rounds[a][0].round_index).forEach(rName => {
     const matches = rounds[rName]
     const allPlayed = matches.every(m => m.played)
@@ -305,7 +297,7 @@ function viewBracket() {
       html += `
         <div style="padding:12px; background:rgba(255,255,255,0.01); border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <div style="flex:1; font-size:13px; font-weight:${m.winner_id === m.team1_id ? 'bold' : 'normal'}">${m.team1 ? teamShort(m.team1) : '⏳ Attente qualifié'}</div>
+            <div style="flex:1; font-size:13px; font-weight:${m.winner_id === m.team1_id ? 'bold' : 'normal'}">${m.team1 ? teamShort(m.team1) : '⏳ Attente'}</div>
             
             <div style="display:flex; align-items:center; gap:4px;">
               <input type="number" id="bs1-${m.id}" class="input" value="${m.sets1 !== null ? m.sets1 : ''}" ${!state.isAdmin || isPlayed || !m.team1 || !m.team2 ? 'readonly' : ''} style="width:40px; text-align:center; padding:4px;" placeholder="0">
@@ -313,12 +305,12 @@ function viewBracket() {
               <input type="number" id="bs2-${m.id}" class="input" value="${m.sets2 !== null ? m.sets2 : ''}" ${!state.isAdmin || isPlayed || !m.team1 || !m.team2 ? 'readonly' : ''} style="width:40px; text-align:center; padding:4px;" placeholder="0">
             </div>
             
-            <div style="flex:1; text-align:right; font-size:13px; font-weight:${m.winner_id === m.team2_id ? 'bold' : 'normal'}">${m.team2 ? teamShort(m.team2) : '⏳ Attente qualifié'}</div>
+            <div style="flex:1; text-align:right; font-size:13px; font-weight:${m.winner_id === m.team2_id ? 'bold' : 'normal'}">${m.team2 ? teamShort(m.team2) : '⏳ Attente'}</div>
           </div>
           
           ${state.isAdmin && !isPlayed && m.team1 && m.team2 ? `
             <button class="btn btn-save-inline-bracket" data-id="${m.id}" style="margin-top:8px; width:100%; background:var(--blue); color:#fff; font-size:12px; padding:4px;">
-              VALIDER ET PROPAGER
+              VALIDER LE SCORE
             </button>
           ` : ''}
         </div>
@@ -327,12 +319,11 @@ function viewBracket() {
     
     html += `</div>`
     
-    // Bouton de passage d'étape dynamique (ex: Clôturer les Quarts)
     if (state.isAdmin && allPlayed && rName !== 'Finale') {
       const nextRoundName = rName === 'Quarts de finale' ? 'Demi-finales' : 'Finale';
       html += `
-        <button class="btn btn-primary btn-full btn-lock-round" data-round="${rName}" style="margin-top:15px; background:var(--accent); color:#0f1923; font-weight:bold;">
-          🔒 VALIDER LES ${rName.toUpperCase()} & GÉNÉRER LES ${nextRoundName.toUpperCase()}
+        <button class="btn btn-lock-round" data-round="${rName}" style="margin-top:15px; width:100%; background:var(--accent); color:#0f1923; font-weight:bold; padding:8px; border:none; border-radius:4px; cursor:pointer;">
+          🔒 VALIDER LES ${rName.toUpperCase()} -> SOUMETTRE LES ${nextRoundName.toUpperCase()}
         </button>
       `
     }
@@ -340,8 +331,9 @@ function viewBracket() {
     html += `</div>`
   })
 
-  if (state.isAdmin && state.bracketMatches.find(m => m.round_name === 'Finale')?.played) {
-    html += `<button id="btn-finish-tournament" class="btn btn-warn btn-full" style="margin-top:20px; font-weight:bold; font-size:16px;">🏆 RECOMPENSER LE VAINQUEUR & CLOTURER LE TOURNOI 🏆</button>`
+  const hasFinale = state.bracketMatches.find(m => m.round_name === 'Finale');
+  if (state.isAdmin && hasFinale && hasFinale.played) {
+    html += `<button id="btn-finish-tournament" class="btn btn-warn btn-full" style="margin-top:20px; font-weight:bold;">🏆 CLOTURER LE TOURNOI 🏆</button>`
   }
   
   return html
@@ -350,9 +342,8 @@ function viewBracket() {
 function viewFinished() {
   return `
     <div class="card" style="text-align:center; padding:40px 20px;">
-      <h1 style="color:var(--accent); font-size:32px; margin-bottom:10px;">🎉 COMPÉTITION TERMINÉE 🎉</h1>
-      <p style="color:var(--text2); font-size:14px;">Tous les scores ont été figés. Merci aux participants !</p>
-      <button onclick="window.location.search=''" class="btn btn-primary" style="margin-top:25px;">Créer un nouveau tournoi</button>
+      <h1 style="color:var(--accent); font-size:32px;">🎉 TOURNOI TERMINE 🎉</h1>
+      <button onclick="window.location.search=''" class="btn btn-primary" style="margin-top:25px;">Nouveau tournoi</button>
     </div>
   `
 }
@@ -361,7 +352,6 @@ function bindEvents() {
   const nmBtn = document.getElementById('nv-matches'); if(nmBtn) nmBtn.onclick = () => { state.activeTab = 'matches'; renderApp() }
   const nsBtn = document.getElementById('nv-standings'); if(nsBtn) nsBtn.onclick = () => { state.activeTab = 'standings'; renderApp() }
 
-  // AJOUT ÉQUIPE SANS REFRESH
   const btnAdd = document.getElementById('btn-add-team')
   if (btnAdd) {
     btnAdd.onclick = async () => {
@@ -373,30 +363,24 @@ function bindEvents() {
       document.getElementById('p2').value = ''
       await loadData()
       renderApp()
-      showToast('Équipe ajoutée !')
     }
   }
 
-  // ENREGISTRER ET FIGER UN SCORE DE POULE
   document.querySelectorAll('.btn-save-inline-pool').forEach(btn => {
     btn.onclick = async () => {
       const id = btn.dataset.id
       const s1 = parseInt(document.getElementById(`s1-${id}`).value)
       const s2 = parseInt(document.getElementById(`s2-${id}`).value)
       if (isNaN(s1) || isNaN(s2)) return showToast('Entrez des scores valides', true)
-      if (s1 === s2) return showToast('Le padel ne gère pas les matchs nuls !', true)
       
       const m = state.poolMatches.find(x => x.id === id)
       const winner_id = s1 > s2 ? m.team1_id : m.team2_id
       await updatePoolMatch(id, { sets1: s1, sets2: s2, played: true, winner_id })
-      
       await loadData()
       renderApp()
-      showToast('Score figé !')
     }
-  })
+  });
 
-  // DEBLOQUER UN SCORE EN CAS D'ERREUR
   document.querySelectorAll('.btn-modifier').forEach(btn => {
     btn.onclick = async () => {
       const id = btn.dataset.id
@@ -408,9 +392,8 @@ function bindEvents() {
       await loadData()
       renderApp()
     }
-  })
+  });
 
-  // LAUNCH POULES
   const btnLaunch = document.getElementById('btn-launch-pools')
   if (btnLaunch) {
     btnLaunch.onclick = async () => {
@@ -431,45 +414,40 @@ function bindEvents() {
     }
   }
 
-  // SOUVEGARDE SCORE TABLEAU FINAL
   document.querySelectorAll('.btn-save-inline-bracket').forEach(btn => {
     btn.onclick = async () => {
       const id = btn.dataset.id
       const s1 = parseInt(document.getElementById(`bs1-${id}`).value)
       const s2 = parseInt(document.getElementById(`bs2-${id}`).value)
-      if (isNaN(s1) || isNaN(s2)) return showToast('Entrez le score complet', true)
-      if (s1 === s2) return showToast('Pas de match nul au padel !', true)
+      if (isNaN(s1) || isNaN(s2)) return showToast('Entrez le score', true)
       
       const m = state.bracketMatches.find(x => x.id === id)
       const winner_id = s1 > s2 ? m.team1_id : m.team2_id
       await updateBracketMatch(id, { sets1: s1, sets2: s2, played: true, winner_id })
-      
       await loadData()
       renderApp()
     }
-  })
+  });
 
-  // EFFET BOUTON "FIN DE TOUR" : PROPAGATION DE LA PHASE SUIVANTE
   document.querySelectorAll('.btn-lock-round').forEach(btn => {
     btn.onclick = async () => {
       const rName = btn.dataset.round
       const currentMatches = state.bracketMatches.filter(m => m.round_name === rName)
       const nextRoundMatches = state.bracketMatches.filter(m => m.round_index === currentMatches[0].round_index + 1)
       
-      currentMatches.forEach(async (m, idx) => {
+      for (let idx = 0; idx < currentMatches.length; idx++) {
+        const m = currentMatches[idx]
         const target = nextRoundMatches[Math.floor(idx / 2)]
         if (target) {
           if (idx % 2 === 0) await updateBracketMatch(target.id, { team1_id: m.winner_id })
           else await updateBracketMatch(target.id, { team2_id: m.winner_id })
         }
-      })
-      showToast(`Phase de ${rName} validée ! Prêt pour l'étape suivante.`)
+      }
       await loadData()
       renderApp()
     }
-  })
+  });
 
-  // PASSAGE DES POULES AU TABLEAU FINAL
   const btnGoBracket = document.getElementById('btn-go-bracket')
   if (btnGoBracket) {
     btnGoBracket.onclick = async () => {
@@ -479,13 +457,15 @@ function bindEvents() {
         pools[t.pool_name].push(t)
       })
       let qualifiers = []
+      const qLimit = state.tournament ? (state.tournament.qualifiers_per_pool || 2) : 2;
+
       Object.keys(pools).sort().forEach(pName => {
         const ranked = rankTeams(pools[pName], state.poolMatches.filter(m => m.pool_name === pName))
-        qualifiers = qualifiers.concat(ranked.slice(0, state.tournament.qualifiers_per_pool || 2))
+        qualifiers = qualifiers.concat(ranked.slice(0, qLimit))
       })
       
       let rSize = qualifiers.length
-      if(rSize < 2) return showToast("Pas assez de qualifiés pour un tableau.", true)
+      if(rSize < 2) return showToast("Pas assez de qualifiés.", true)
       let ri = 0
       while (rSize > 1) {
         let rName = rSize === 2 ? 'Finale' : rSize === 4 ? 'Demi-finales' : 'Quarts de finale'
